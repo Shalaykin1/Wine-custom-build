@@ -133,7 +133,7 @@ build_host_tools() {
   pushd "$HOST_TOOLS_DIR" >/dev/null
   CC=clang CXX=clang++ "$SRC_DIR/configure" \
     --enable-win64 \
-    --with-mingw=clang \
+    --with-mingw=llvm-mingw \
     "${COMMON_DISABLE_FLAGS[@]}"
   make __tooldeps__ -j"$JOBS"
   make -C nls -j"$JOBS" || true
@@ -181,7 +181,7 @@ build_x64_x86() {
   "$SRC_DIR/configure" \
     --prefix "$prefix" \
     --enable-win64 \
-    --with-mingw=clang \
+    --with-mingw=llvm-mingw \
     --enable-archs=i386,x86_64 \
     "${COMMON_DISABLE_FLAGS[@]}"
   make -j"$JOBS"
@@ -196,11 +196,22 @@ build_arm64ec() {
   local build_dir="$BUILD_ROOT/arm64ec"
   local stage_dir="$DIST_DIR/stage/arm64ec"
   local prefix="/opt/wine-${WINE_REF#wine-}-arm64ec"
+  local host_cc host_cxx host_ar host_ranlib host_strip
 
-  command -v "${HOST_TRIPLE_ARM64}-gcc" >/dev/null 2>&1 || {
-    echo "Missing ${HOST_TRIPLE_ARM64}-gcc. Run ./scripts/install-build-deps.sh first." >&2
-    exit 1
-  }
+  if command -v "${HOST_TRIPLE_ARM64}-gcc" >/dev/null 2>&1; then
+    host_cc="${HOST_TRIPLE_ARM64}-gcc"
+    host_cxx="${HOST_TRIPLE_ARM64}-g++"
+    host_ar="${HOST_TRIPLE_ARM64}-ar"
+    host_ranlib="${HOST_TRIPLE_ARM64}-ranlib"
+    host_strip="${HOST_TRIPLE_ARM64}-strip"
+  else
+    log "${HOST_TRIPLE_ARM64}-gcc not found; falling back to clang --target=${HOST_TRIPLE_ARM64}"
+    host_cc="clang --target=${HOST_TRIPLE_ARM64}"
+    host_cxx="clang++ --target=${HOST_TRIPLE_ARM64}"
+    host_ar="llvm-ar"
+    host_ranlib="llvm-ranlib"
+    host_strip="llvm-strip"
+  fi
 
   log "Building arm64ec variant"
   rm -rf "$build_dir" "$stage_dir"
@@ -208,11 +219,11 @@ build_arm64ec() {
 
   export PATH="$LLVM_MINGW_ROOT/bin:$PATH"
   export PKG_CONFIG_LIBDIR="/usr/lib/${HOST_TRIPLE_ARM64}/pkgconfig:/usr/share/pkgconfig"
-  export CC="${HOST_TRIPLE_ARM64}-gcc"
-  export CXX="${HOST_TRIPLE_ARM64}-g++"
-  export AR="${HOST_TRIPLE_ARM64}-ar"
-  export RANLIB="${HOST_TRIPLE_ARM64}-ranlib"
-  export STRIP="${HOST_TRIPLE_ARM64}-strip"
+  export CC="$host_cc"
+  export CXX="$host_cxx"
+  export AR="$host_ar"
+  export RANLIB="$host_ranlib"
+  export STRIP="$host_strip"
   export CFLAGS="-O2 -pipe -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types"
   export CROSSCFLAGS="$CFLAGS"
   export LDFLAGS="-s -Wl,--dynamic-linker=${ANDROID_IMAGEFS_RPATH}/ld-linux-aarch64.so.1 -Wl,-rpath=${ANDROID_IMAGEFS_RPATH} -Wl,--sort-common,--as-needed"
@@ -222,7 +233,7 @@ build_arm64ec() {
   "$SRC_DIR/configure" \
     --prefix "$prefix" \
     --enable-win64 \
-    --with-mingw=clang \
+    --with-mingw=llvm-mingw \
     --enable-archs=arm64ec,aarch64,i386 \
     --host="$HOST_TRIPLE_ARM64" \
     host_alias="$HOST_TRIPLE_ARM64" \

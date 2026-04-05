@@ -52,6 +52,7 @@ sudo apt-get install -y --no-install-recommends \
   autoconf \
   automake \
   bison \
+  binutils-aarch64-linux-gnu \
   build-essential \
   ca-certificates \
   clang \
