@@ -1,0 +1,76 @@
+name: build-wine-11.6-winlator
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Which Winlator build to produce
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - x64-x86
+          - arm64ec
+      wine_ref:
+        description: Upstream Wine tag or branch
+        required: true
+        default: wine-11.6
+
+permissions:
+  contents: read
+
+jobs:
+  build-x64-x86:
+    if: ${{ github.event.inputs.variant == 'all' || github.event.inputs.variant == 'x64-x86' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Install dependencies
+        run: ./scripts/install-build-deps.sh
+
+      - name: Build Wine x64/x86
+        env:
+          WINE_REF: ${{ github.event.inputs.wine_ref }}
+        run: ./scripts/build-winlator-wine.sh x64-x86
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wine-x64-x86
+          path: |
+            dist/wine-*-x64-x86.tar.xz
+            dist/wine-*-x64-x86.wcp
+
+  build-arm64ec:
+    if: ${{ github.event.inputs.variant == 'all' || github.event.inputs.variant == 'arm64ec' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Install dependencies
+        run: ./scripts/install-build-deps.sh
+
+      - name: Build Wine arm64ec
+        env:
+          WINE_REF: ${{ github.event.inputs.wine_ref }}
+        run: ./scripts/build-winlator-wine.sh arm64ec
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wine-arm64ec
+          path: |
+            dist/wine-*-arm64ec.tar.xz
+            dist/wine-*-arm64ec.wcp
