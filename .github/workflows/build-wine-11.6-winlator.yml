@@ -1,6 +1,14 @@
 name: build-wine-11.6-winlator
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-wine-11.6-winlator.yml'
+      - 'scripts/**'
+      - 'Makefile'
+      - 'README.md'
   workflow_dispatch:
     inputs:
       variant:
@@ -18,11 +26,11 @@ on:
         default: wine-11.6
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-x64-x86:
-    if: ${{ github.event.inputs.variant == 'all' || github.event.inputs.variant == 'x64-x86' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.variant == 'all' || github.event.inputs.variant == 'x64-x86' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
@@ -37,7 +45,7 @@ jobs:
 
       - name: Build Wine x64/x86
         env:
-          WINE_REF: ${{ github.event.inputs.wine_ref }}
+          WINE_REF: ${{ github.event.inputs.wine_ref || 'wine-11.6' }}
         run: ./scripts/build-winlator-wine.sh x64-x86
 
       - name: Upload artifacts
@@ -49,7 +57,7 @@ jobs:
             dist/wine-*-x64-x86.wcp
 
   build-arm64ec:
-    if: ${{ github.event.inputs.variant == 'all' || github.event.inputs.variant == 'arm64ec' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.variant == 'all' || github.event.inputs.variant == 'arm64ec' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
@@ -64,7 +72,7 @@ jobs:
 
       - name: Build Wine arm64ec
         env:
-          WINE_REF: ${{ github.event.inputs.wine_ref }}
+          WINE_REF: ${{ github.event.inputs.wine_ref || 'wine-11.6' }}
         run: ./scripts/build-winlator-wine.sh arm64ec
 
       - name: Upload artifacts
@@ -74,3 +82,39 @@ jobs:
           path: |
             dist/wine-*-arm64ec.tar.xz
             dist/wine-*-arm64ec.wcp
+
+  publish-release:
+    if: ${{ github.event_name == 'push' || github.event.inputs.variant == 'all' }}
+    runs-on: ubuntu-24.04
+    needs:
+      - build-x64-x86
+      - build-arm64ec
+    steps:
+      - name: Download x64/x86 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wine-x64-x86
+          path: release-assets
+
+      - name: Download arm64ec artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wine-arm64ec
+          path: release-assets
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: wine-11.6-winlator-cmod
+          name: Wine 11.6 for Winlator CMOD
+          body: |
+            Automated Wine 11.6 build for Winlator CMOD (StevenMXZ).
+
+            Included variants:
+            - x64/x86 (WoW64)
+            - arm64ec
+          files: |
+            release-assets/*.tar.xz
+            release-assets/*.wcp
+          overwrite_files: true
+          make_latest: true
