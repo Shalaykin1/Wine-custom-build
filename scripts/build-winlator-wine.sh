@@ -54,6 +54,17 @@ log() {
   printf '\n[%s] %s\n' "$(date +'%H:%M:%S')" "$*"
 }
 
+find_first_cmd() {
+  local candidate
+  for candidate in "$@"; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 require_cmds() {
   local missing=()
   for cmd in git curl tar python3 zstd xz; do
@@ -198,19 +209,18 @@ build_arm64ec() {
   local prefix="/opt/wine-${WINE_REF#wine-}-arm64ec"
   local host_cc host_cxx host_ar host_ranlib host_strip
 
-  if command -v "${HOST_TRIPLE_ARM64}-gcc" >/dev/null 2>&1; then
-    host_cc="${HOST_TRIPLE_ARM64}-gcc"
-    host_cxx="${HOST_TRIPLE_ARM64}-g++"
-    host_ar="${HOST_TRIPLE_ARM64}-ar"
-    host_ranlib="${HOST_TRIPLE_ARM64}-ranlib"
-    host_strip="${HOST_TRIPLE_ARM64}-strip"
+  host_cc="$(find_first_cmd "${HOST_TRIPLE_ARM64}-gcc" "${HOST_TRIPLE_ARM64}-gcc-14" "${HOST_TRIPLE_ARM64}-gcc-13" || true)"
+  host_cxx="$(find_first_cmd "${HOST_TRIPLE_ARM64}-g++" "${HOST_TRIPLE_ARM64}-g++-14" "${HOST_TRIPLE_ARM64}-g++-13" || true)"
+  host_ar="$(find_first_cmd "${HOST_TRIPLE_ARM64}-ar" llvm-ar)"
+  host_ranlib="$(find_first_cmd "${HOST_TRIPLE_ARM64}-ranlib" llvm-ranlib)"
+  host_strip="$(find_first_cmd "${HOST_TRIPLE_ARM64}-strip" llvm-strip)"
+
+  if [[ -n "$host_cc" && -n "$host_cxx" ]]; then
+    log "Using ARM64 host compiler: $host_cc"
   else
-    log "${HOST_TRIPLE_ARM64}-gcc not found; falling back to clang --target=${HOST_TRIPLE_ARM64}"
+    log "ARM64 GCC wrapper not found; falling back to clang --target=${HOST_TRIPLE_ARM64}"
     host_cc="clang --target=${HOST_TRIPLE_ARM64}"
     host_cxx="clang++ --target=${HOST_TRIPLE_ARM64}"
-    host_ar="llvm-ar"
-    host_ranlib="llvm-ranlib"
-    host_strip="llvm-strip"
   fi
 
   log "Building arm64ec variant"
